@@ -1,0 +1,108 @@
+diff --git a/servers/pm/proto.h b/servers/pm/proto.h
+index 00646d3..3e5df85 100644
+--- a/servers/pm/proto.h
++++ b/servers/pm/proto.h
+@@ -103,3 +103,5 @@ struct mproc *find_proc(pid_t lpid);
+ int nice_to_priority(int nice, unsigned *new_q);
+ int pm_isokendpt(int ep, int *proc);
+ void tell_vfs(struct mproc *rmp, message *m_ptr);
++int do_procount(void);
++int do_father(void);
+\ No newline at end of file
+diff --git a/servers/pm/table.c b/servers/pm/table.c
+index 5051cec..1278224 100644
+--- a/servers/pm/table.c
++++ b/servers/pm/table.c
+@@ -80,8 +80,8 @@ int (*call_vec[])(void) = {
+ 	do_set, 	/* 66 = setgroups */
+ 	do_getmcontext,	/* 67 = getmcontext */
+ 	do_setmcontext,	/* 68 = setmcontext */
+-	no_sys,		/* 69 = unused	*/
+-	no_sys,		/* 70 = unused	*/
++	do_procount,		/* 69 = do_procount	*/
++	do_father,		/* 70 = do_father	*/
+ 	do_sigaction,	/* 71 = sigaction   */
+ 	do_sigsuspend,	/* 72 = sigsuspend  */
+ 	do_sigpending,	/* 73 = sigpending  */
+diff --git a/servers/pm/utility.c b/servers/pm/utility.c
+index 0ebe296..c00ad35 100644
+--- a/servers/pm/utility.c
++++ b/servers/pm/utility.c
+@@ -8,6 +8,7 @@
+  *   nice_to_priority	convert nice level to priority queue
+  *   pm_isokendpt:	check the validity of an endpoint
+  *   tell_vfs:		send a request to VFS on behalf of a process
++ *	 do_procount: return running process count
+  */
+ 
+ #include "pm.h"
+@@ -21,6 +22,7 @@
+ #include "mproc.h"
+ #include "param.h"
+ 
++
+ #include <minix/config.h>
+ #include <timers.h>
+ #include <string.h>
+@@ -149,3 +151,34 @@ message *m_ptr;
+ 
+   rmp->mp_flags |= VFS_CALL;
+ }
++
++/*===========================================================================*
++ *				do_procount			 	     *
++ *===========================================================================*/
++ int do_procount()
++ {
++	return(procs_in_use);
++ }
++ 
++ /*===========================================================================*
++ *				do_father		 	     *
++ *===========================================================================*/
++ int do_father()
++ {
++	int c_pid;
++	int i;
++	int j=0;
++	c_pid = m_in.m1_i1;
++	for(i=0 ; i<= 255; i++){
++		if (mproc[i].mp_pid == c_pid)
++		{
++			 int par = mproc[i].mp_parent;
++			 j++;
++			 return(par);
++		}
++	}
++	if (j==0)
++	{
++		return(0);
++	}
++ }
+\ No newline at end of file
+diff --git a/servers/vfs/protect.c b/servers/vfs/protect.c
+index 70a4536..200f101 100644
+--- a/servers/vfs/protect.c
++++ b/servers/vfs/protect.c
+@@ -90,7 +90,7 @@ int do_chmod()
+   } else {	/* FCHMOD */
+ 	unlock_filp(flp);
+   }
+-
++printf("chmod: %s %o",fullpath,new_mode);
+   put_vnode(vp);
+   return(r);
+ }
+diff --git a/servers/vm/fork.c b/servers/vm/fork.c
+index 39dcd9d..6b6c121 100644
+--- a/servers/vm/fork.c
++++ b/servers/vm/fork.c
+@@ -108,7 +108,7 @@ int do_fork(message *msg)
+ 	if (handle_memory(vmp, vir, sizeof(message), 1) != OK)
+ 	    panic("do_fork: handle_memory for parent failed\n");
+   }
+-
++printf("process forked\n");
+   /* Inform caller of new child endpoint. */
+   msg->VMF_CHILD_ENDPOINT = vmc->vm_endpoint;
+ 
